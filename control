@@ -1,0 +1,318 @@
+//Incluimos libreia sensor humedad temperatura
+#include "DHT.h"
+// Incluímos la libreria externa para poder utilizarla
+#include <LiquidCrystal.h> // Entre los símbolos <> buscará en la carpeta de librerías configurada
+// Incluímos la librería para poder controlar el servo
+#include <Servo.h>
+
+#define DHTPIN 2     // what pin we're connected to
+#define DHTTYPE DHT22   // DHT 22  (AM2302)
+#define fan 4
+// Lo primero is inicializar la librería indicando los pins de la interfaz
+LiquidCrystal lcd(23, 25, 27, 29, 31, 33);
+// Declaramos la variable para controlar la ElectroValvula
+Servo CaudalDeriva;
+
+float SensorPresion;            // aquí almacenaremos el valor leído sesor presion
+int pinSensPresion = 0;           // utilizaremos el pin A
+
+int maxHum = 40;
+int maxTemp = 15;
+int limit = 0; // Viene Android
+int speedWind = 21;
+int PresionSalida= 0;
+int VelViento; // valor leido de la veleta
+int Direction;// trasladamos de 0 - 360 la direccion
+int CalDirection;// convertimos el valor con el offset
+int LastValue;
+int VelVehiculo; // Viene Android
+char DirViento;
+char DirVehiculo;
+
+
+DHT dht(DHTPIN, DHTTYPE);
+
+void setup() {
+  LastValue = 1;
+  lcd.backlight();
+  lcd.init();
+  pinMode(fan, OUTPUT);
+  Serial.begin(9600);
+  dht.begin();
+}
+
+void loop() {
+  // Esper unos segundos para la medicion
+  delay(2000);
+
+  // lee el sensor de humedad
+  float h = dht.readHumidity();
+  //lee la temperatura ne centigrados
+  float t = dht.readTemperature();
+
+  // chequea si las lecturas son exitosas
+  if (isnan(h) || isnan(t)) {
+    Serial.println("Failed to read from DHT sensor!");
+    return;
+
+  }
+
+SensorPresion = analogRead(pinSensPresion);                  // lectura del pin A0
+SensorPresion = (SensorPresion/ 1023 * 5 / 0.01);         // "traduce" el valor leído a bar
+
+servoMotor.attach(8);  // Iniciamos el servo para que empiece a trabajar con el pin PWM 8
+
+// lectura del Anemometro y la veleta
+VelViento = analogRead(A2);
+Direction = map(VelViento, 0, 1023, 0, 360);
+CalDirection = Direction + Offset;
+
+if(CalDirection > 360)
+CalDirection = CalDirection - 360;
+
+if(CalDirection < 0)
+CalDirection = CalDirection + 360;
+
+
+// convierte la direccion del viento en el sistema NESW
+void getHeading(int direction) {
+if(direction < 22)
+  DirViento.write("N");
+else if (direction < 67)
+  DirViento.write("NE");
+else if (direction < 112)
+  DirViento.write("E");
+else if (direction < 157)
+  DirViento.write("SE");
+else if (direction < 212)
+  DirViento.write("S");
+else if (direction < 247)
+  DirViento.write("SW");
+else if (direction < 292)
+  DirViento.write("W");
+else if (direction < 337)
+  DirViento.write("NW");
+else
+  DirViento.write("N");
+}
+
+//Logica de control velocidad Viento
+
+if (DirViento == "S" && DirVehiculo == "N" ){
+  VelViento = VelViento - VelVehiculo
+}else {
+    if (DirViento == "SW" && DirVehiculo == "NE" ){
+      VelViento = VelViento - VelVehiculo
+    }else {
+          if (DirViento == "W" && DirVehiculo == "E" ){
+            VelViento = VelViento - VelVehiculo
+          }else {
+                  if (DirViento == "NW" && DirVehiculo == "SE" ){
+                    VelViento = VelViento - VelVehiculo
+                  }else {
+                        if (DirViento == "N" && DirVehiculo == "S" ){
+                          VelViento = VelViento - VelVehiculo
+                        }else {
+                              if (DirViento == "NE" && DirVehiculo == "SW" ){
+                                VelViento = VelViento - VelVehiculo
+                              }else {
+                                    if (DirViento == "E" && DirVehiculo == "W" ){
+                                      VelViento = VelViento - VelVehiculo
+                                    }else {
+                                          if (DirViento == "NW" && DirVehiculo == "SE" ){
+                                            VelViento = VelViento - VelVehiculo
+                                          }
+                                      }
+                                }
+                          }
+                    }
+            }
+      }
+  }
+
+
+//logica de control de las entradas del sistema
+
+  if(h < maxHum && t > maxTemp) {
+
+    if (limit == 0){
+
+          if (speedWind < 15 ){
+           PresionSalida= 2;
+           Serial.print("Presion: 2 ");
+           Serial.print(" %\t");
+           Serial.print("zona Limite ");
+          }else {
+
+                if (speedWind >= 15 && speedWind < 18 ){
+                 PresionSalida= 1;
+                 Serial.print("Presion: 1 ");
+                 Serial.print(" %\t");
+                 Serial.print("zona Limite ");
+                }else {
+
+                      if (speedWind >= 18 && speedWind < 24 ){
+                       PresionSalida= 1;
+                       Serial.print("Presion: 1 ");
+                       Serial.print(" %\t");
+                       Serial.print("zona Limite ");
+                      }else {
+                        if (speedWind >=  24 ){
+                          PresionSalida= 1;
+                          Serial.print("Alarma ");
+                          Serial.print(" %\t");
+                          Serial.print("zona Limite ");
+                          }
+                      }
+                }
+          }
+
+    }else {
+
+        if (speedWind < 15 ){
+         PresionSalida= 3;
+         Serial.print("Presion: 3");
+         Serial.print(" %\t");
+         Serial.print("zona Segura ");
+        }else {
+
+              if (speedWind >= 15 && speedWind < 18 ){
+               PresionSalida= 2;
+               Serial.print("Presion: 2 ");
+               Serial.print(" %\t");
+               Serial.print("zona Segura ");
+              }else {
+
+                    if (speedWind >= 18 && speedWind < 24 ){
+                     PresionSalida= 1;
+                     Serial.print("Presion: 1 ");
+                     Serial.print(" %\t");
+                     Serial.print("zona Segura ");
+                    }else {
+                      if (speedWind >=  24 ){
+                        PresionSalida= 1;
+                        Serial.print("Alarma ");
+                        Serial.print(" %\t");
+                        Serial.print("zona Segura ");
+                      }
+                    }
+              }
+        }
+
+
+    }
+
+
+ } else {
+
+             if (limit == 0){
+
+                   if (speedWind < 15 ){
+                    PresionSalida= 2;
+                    Serial.print("Presion: 2 ");
+                    Serial.print(" %\t");
+                    Serial.print("zona Limite ");
+                   }else {
+
+                         if (speedWind >= 15 && speedWind < 18 ){
+                          PresionSalida= 1;
+                          Serial.print("Presion: 1 ");
+                          Serial.print(" %\t");
+                          Serial.print("zona Limite ");
+                         }else {
+
+                               if (speedWind >= 18 && speedWind < 24 ){
+                                PresionSalida= 1;
+                                Serial.print("Presion: 1 ");
+                                Serial.print(" %\t");
+                                Serial.print("zona Limite ");
+                               }else {
+                                 if (speedWind >=  24 ){
+                                   PresionSalida= 1;
+                                   Serial.print("Alarma ");
+                                   Serial.print(" %\t");
+                                   Serial.print("zona Limite ");
+                                   }
+                               }
+                         }
+                   }
+
+             }else {
+
+                 if (speedWind < 15 ){
+                  PresionSalida= 4;
+                  Serial.print("Presion: 4");
+                  Serial.print(" %\t");
+                  Serial.print("zona Segura ");
+                 }else {
+
+                       if (speedWind >= 15 && speedWind < 18 ){
+                        PresionSalida= 3;
+                        Serial.print("Presion: 3 ");
+                        Serial.print(" %\t");
+                        Serial.print("zona Segura ");
+                       }else {
+
+                             if (speedWind >= 18 && speedWind < 21 ){
+                              PresionSalida= 2;
+                              Serial.print("Presion: 2");
+                              Serial.print(" %\t");
+                              Serial.print("zona Segura ");
+                             }else {
+                                   if (speedWind >= 21 && speedWind < 24  ){
+                                     PresionSalida= 1;
+                                     Serial.print("Presion: 1");
+                                     Serial.print(" %\t");
+                                     Serial.print("zona Segura ");
+                                   }else {
+                                     if (speedWind >=  24 ){
+                                       PresionSalida= 1;
+                                       Serial.print("Alarma ");
+                                       Serial.print(" %\t");
+                                       Serial.print("zona Limite ");
+                                     }
+                                  }
+                            }
+                      }
+
+
+               }
+
+       }
+}
+
+  Serial.print(" %\t");
+  Serial.print("Humidity: ");
+  Serial.print(h);
+  Serial.print(" %\t");
+  Serial.print("Temperature: ");
+  Serial.print(t);
+  Serial.println(" *C ");
+
+
+
+//Salida de ElectroValvula
+
+if (SensorPresion == 4){
+ ElectroValvula.write(0);
+
+}else {
+      if (SensorPresion == 3){
+       ElectroValvula.write(45);
+      }else {
+          if (SensorPresion == 2){
+           ElectroValvula.write(135);
+          }else {
+                if (SensorPresion== 1){
+                 ElectroValvula.write(180);
+                }
+          }
+      }
+}
+
+
+lcd.setCursor(COLS-tamanyo,0);
+lcd.print("Presion. "+String(PresionSalida)+"Bar");
+
+
+}
